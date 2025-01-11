@@ -1,0 +1,111 @@
+server:
+  port: 8080
+  servlet:
+    context-path: /pdca
+
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3306/pdca?useSSL=true&serverTimezone=UTC
+    username: PDCA
+    password: PMSzeFScEwikKFdE
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    # 生产环境数据库连接池配置
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      idle-timeout: 300000
+      connection-timeout: 20000
+      max-lifetime: 1200000
+
+  jpa:
+    hibernate:
+      ddl-auto: none  # 生产环境禁用自动建表
+    show-sql: false   # 生产环境关闭SQL日志
+    database-platform: org.hibernate.dialect.MySQL8Dialect
+    properties:
+      hibernate:
+        format_sql: false
+        jdbc:
+          batch_size: 50
+        order_inserts: true
+        order_updates: true
+
+  mvc:
+    pathmatch:
+      matching-strategy: ant_path_matcher
+
+  mail:
+    host: smtp.example.com
+    port: 587
+    username: your-email@example.com
+    password: your-email-password
+#    properties:
+#      mail:
+#        smtp:
+#          auth: true
+#          starttls:
+#            enable: true
+
+  # 生产环境禁用初始用户配置
+  init:
+    user:
+      enabled: false
+
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: GMT+8
+    serialization:
+      write-dates-as-timestamps: false
+
+logging:
+  level:
+    root: WARN
+    com.example.pdca: INFO
+  file:
+    name: /var/log/pdca/application.log
+  logback:
+    rollingpolicy:
+      max-file-size: 10MB
+      max-history: 30
+      total-size-cap: 3GB
+
+swagger:
+  enable: false  # 生产环境禁用Swagger
+
+jwt:
+  secret: ${JWT_SECRET}  # 使用环境变量存储密钥
+  expiration: 86400000  # 24小时
+
+# 生产环境跨域配置
+cors:
+  allowed-origins: "*"
+  allowed-methods: GET,POST,PUT,DELETE,OPTIONS,HEAD,PATCH
+  allowed-headers: "*"
+  allow-credentials: true
+  max-age: 3600
+#
+## 缓存配置
+#cache:
+#  type: redis
+#  redis:
+#    host: ${REDIS_HOST}
+#    port: ${REDIS_PORT}
+#    password: ${REDIS_PASSWORD}
+#    timeout: 3000
+#    database: 0
+#    lettuce:
+#      pool:
+#        max-active: 8
+#        max-idle: 8
+#        min-idle: 0
+#        max-wait: -1ms
+
+# 安全配置
+security:
+  require-ssl: true
+  headers:
+    hsts: true
+    frame: DENY
+    xss: true
+    content-type: true
+    cache-control: true 
