@@ -3,6 +3,7 @@ package com.example.pdca.service;
 import com.example.pdca.dto.ReportDTO;
 import com.example.pdca.model.Report;
 import com.example.pdca.model.User;
+import com.example.pdca.model.Task;
 
 import java.io.ByteArrayOutputStream;
 import java.util.List;
@@ -116,4 +117,18 @@ public interface ReportService {
      * @return 更新后的报告
      */
     Report submitReport(Long reportId, User submitter);
+
+    /**
+     * 检查计划的任务评分情况
+     * @param planId 计划ID
+     * @return 未评分的任务列表
+     */
+    List<Task> checkUnEvaluatedTasks(Long planId);
+
+    /**
+     * 通过计划ID获取报告
+     * @param planId 计划ID
+     * @return 报告信息
+     */
+    Report getReportByPlanId(Long planId);
 } 

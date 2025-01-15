@@ -32,4 +32,13 @@ public interface ReportRepository extends JpaRepository<Report, Long> {
     @Query(value = "SELECT DISTINCT r FROM Report r WHERE r.status = :status",
            countQuery = "SELECT COUNT(DISTINCT r) FROM Report r WHERE r.status = :status")
     Page<Report> findPageByStatus(@Param("status") Report.ReportStatus status, Pageable pageable);
+
+    /**
+     * 根据计划ID和报告类型查找报告
+     * @param planId 计划ID
+     * @param type 报告类型
+     * @return 报告列表
+     */
+    @Query("SELECT r FROM Report r WHERE r.plan.id = :planId AND r.type = :type")
+    List<Report> findByPlanAndType(@Param("planId") Long planId, @Param("type") Report.ReportType type);
 } 
