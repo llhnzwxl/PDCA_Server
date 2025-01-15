@@ -3,8 +3,12 @@ package com.example.pdca.controller;
 import com.example.pdca.dto.ReportDTO;
 import com.example.pdca.model.Report;
 import com.example.pdca.model.User;
+import com.example.pdca.model.Plan;
+import com.example.pdca.model.Task;
 import com.example.pdca.service.ReportService;
 import com.example.pdca.service.UserService;
+import com.example.pdca.service.PlanService;
+import com.example.pdca.exception.BusinessException;
 import io.swagger.annotations.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.ByteArrayResource;
@@ -23,6 +27,10 @@ import org.springframework.web.bind.annotation.*;
 import javax.validation.Valid;
 import java.io.ByteArrayOutputStream;
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.Map;
+import java.util.HashMap;
+import org.springframework.http.HttpStatus;
 
 /**
  * 报告管理控制器
@@ -39,6 +47,9 @@ public class ReportController {
     @Autowired
     private UserService userService;
 
+    @Autowired
+    private PlanService planService;
+
     @PostMapping
     @ApiOperation("创建报告")
     public ResponseEntity<Report> createReport(
@@ -52,15 +63,66 @@ public class ReportController {
     }
 
     @PostMapping("/generate/{planId}")
-    @ApiOperation("自动生成 PDCA 循环总结报告")
-    public ResponseEntity<Report> generatePDCAReport(
-        @PathVariable Long planId) {
+    @ApiOperation(value = "自动生成PDCA循环总结报告", notes = "根据计划ID自动生成PDCA报告，需要所有任务都已评分")
+    @ApiResponses({
+        @ApiResponse(code = 200, message = "生成成功"),
+        @ApiResponse(code = 400, message = "存在未评分的任务"),
+        @ApiResponse(code = 404, message = "计划不存在")
+    })
+    public ResponseEntity<ReportDTO> generateReport(
+        @ApiParam(value = "计划ID", required = true) @PathVariable Long planId) {
+        
+        // 获取当前登录用户
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         String username = authentication.getName();
-        User creator = userService.findByUsername(username);
-
-        Report generatedReport = reportService.generatePDCAReport(planId, creator);
-        return ResponseEntity.ok(generatedReport);
+        User currentUser = userService.findByUsername(username);
+        
+        // 获取计划信息
+        Plan plan = planService.getPlanById(planId);
+        
+        // 检查所有任务是否已评分
+        List<Task> unEvaluatedTasks = plan.getTasks().stream()
+            .filter(task -> task.getScore() == null)
+            .collect(Collectors.toList());
+        
+        if (!unEvaluatedTasks.isEmpty()) {
+            throw new BusinessException("存在未评分的任务，无法生成报告。未评分任务数量：" + unEvaluatedTasks.size());
+        }
+        
+        // 创建报告DTO
+        ReportDTO reportDTO = new ReportDTO();
+        reportDTO.setTitle(plan.getTitle() + " - PDCA循环总结报告");
+        reportDTO.setPlanId(planId);
+        reportDTO.setType(Report.ReportType.PDCA_CYCLE);
+        
+        // 生成报告内容
+        StringBuilder summary = new StringBuilder();
+        summary.append("本报告总结了计划「").append(plan.getTitle()).append("」的PDCA循环执行情况。\n");
+        summary.append("计划开始时间：").append(plan.getStartTime()).append("\n");
+        summary.append("计划结束时间：").append(plan.getEndTime()).append("\n");
+        summary.append("任务完成情况：已完成 ").append(plan.getTasks().size()).append(" 个任务\n");
+        reportDTO.setSummary(summary.toString());
+        
+        // 计算平均分
+        double avgScore = plan.getTasks().stream()
+            .mapToInt(Task::getScore)
+            .average()
+            .orElse(0.0);
+        
+        // 生成任务评价分析
+        StringBuilder planningAnalysis = new StringBuilder();
+        planningAnalysis.append("任务平均得分：").append(String.format("%.2f", avgScore)).append("\n");
+        planningAnalysis.append("任务评价详情：\n");
+        plan.getTasks().forEach(task -> {
+            planningAnalysis.append("- ").append(task.getName())
+                .append("（得分：").append(task.getScore()).append("）：")
+                .append(task.getEvaluation()).append("\n");
+        });
+        reportDTO.setPlanningAnalysis(planningAnalysis.toString());
+        
+        // 创建报告
+        Report report = reportService.createReport(reportDTO, currentUser);
+        return ResponseEntity.ok(convertToDetailDTO(report));
     }
 
     @GetMapping("/export/pdf/{reportId}")
@@ -144,20 +206,42 @@ public class ReportController {
         return dto;
     }
 
-    @GetMapping("/{reportId}")
-    @ApiOperation(value = "获取报告详情", notes = "根据报告ID获取详细信息")
+    @GetMapping("/plan/{planId}")
+    @ApiOperation(value = "获取计划的报告详情", notes = "通过计划ID获取PDCA循环总结报告")
     @ApiResponses({
         @ApiResponse(code = 200, message = "获取成功"),
-        @ApiResponse(code = 404, message = "报告不存在")
+        @ApiResponse(code = 404, message = "计划不存在"),
+        @ApiResponse(code = 400, message = "计划尚未生成报告")
     })
-    public ResponseEntity<ReportDTO> getReportDetail(
-        @ApiParam(value = "报告ID", required = true) @PathVariable Long reportId) {
+    public ResponseEntity<ReportDTO> getReportByPlanId(
+        @ApiParam(value = "计划ID", required = true) @PathVariable Long planId) {
         
-        Report report = reportService.getReportById(reportId);
+        // 先检查计划是否存在
+        Plan plan = planService.getPlanById(planId);
+        if (plan == null) {
+            throw new BusinessException("计划不存在", HttpStatus.NOT_FOUND);
+        }
         
-        // 转换为 DTO 并返回
-        ReportDTO reportDTO = convertToDetailDTO(report);
-        return ResponseEntity.ok(reportDTO);
+        try {
+            Report report = reportService.getReportByPlanId(planId);
+            return ResponseEntity.ok(convertToDetailDTO(report));
+        } catch (BusinessException e) {
+            // 如果是因为报告不存在而抛出的异常，返回特定的响应
+            Map<String, Object> response = new HashMap<>();
+            response.put("planId", planId);
+            response.put("planTitle", plan.getTitle());
+            response.put("message", "计划尚未生成PDCA循环总结报告");
+            response.put("canGenerate", plan.getTasks().stream().allMatch(task -> task.getScore() != null));
+            
+            return ResponseEntity.status(HttpStatus.OK)
+                .body(new ReportDTO() {{
+                    setPlanId(planId);
+                    setPlanTitle(plan.getTitle());
+                    setStatus(Report.ReportStatus.NOT_GENERATED);
+                    setCanGenerate(response.get("canGenerate").toString());
+                    setMessage(response.get("message").toString());
+                }});
+        }
     }
 
     private ReportDTO convertToDetailDTO(Report report) {

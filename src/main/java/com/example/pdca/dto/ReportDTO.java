@@ -60,4 +60,10 @@ public class ReportDTO {
 
     @ApiModelProperty(value = "关联计划描述")
     private String planDescription;
+
+    @ApiModelProperty(value = "是否可以生成报告")
+    private String canGenerate;
+
+    @ApiModelProperty(value = "提示信息")
+    private String message;
 } 
