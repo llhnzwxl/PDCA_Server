@@ -4,6 +4,8 @@ import com.example.pdca.dto.ReportDTO;
 import com.example.pdca.model.*;
 import com.example.pdca.repository.*;
 import com.example.pdca.service.ReportService;
+import com.example.pdca.service.PlanService;
+import com.example.pdca.exception.BusinessException;
 import com.example.pdca.util.ExcelReportGenerator;
 import com.example.pdca.util.PDFReportGenerator;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.io.ByteArrayOutputStream;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * 报告服务实现类
@@ -42,6 +45,9 @@ public class ReportServiceImpl implements ReportService {
 
     @Autowired
     private ExcelReportGenerator excelReportGenerator;
+
+    @Autowired
+    private PlanService planService;
 
     @Override
     @Transactional
@@ -160,43 +166,54 @@ public class ReportServiceImpl implements ReportService {
     @Override
     @Transactional
     public Report generatePDCAReport(Long planId, User creator) {
+        // 检查是否已经生成过报告
+        List<Report> existingReports = reportRepository.findByPlanAndType(planId, Report.ReportType.PDCA_CYCLE);
+        if (!existingReports.isEmpty()) {
+            throw new BusinessException("该计划已生成PDCA循环总结报告，不能重复生成");
+        }
+
+        // 检查未评分的任务
+        List<Task> unEvaluatedTasks = checkUnEvaluatedTasks(planId);
+        if (!unEvaluatedTasks.isEmpty()) {
+            throw new BusinessException("存在未评分的任务，无法生成报告。未评分任务数量：" + unEvaluatedTasks.size());
+        }
+
         // 获取计划信息
-        Plan plan = planRepository.findById(planId)
-            .orElseThrow(() -> new RuntimeException("计划不存在"));
+        Plan plan = planService.getPlanById(planId);
         
-        // 获取相关的执行阶段
-        List<DoPhase> doPhases = doRepository.findByPlan(plan);
+        // 创建报告DTO
+        ReportDTO reportDTO = new ReportDTO();
+        reportDTO.setTitle(plan.getTitle() + " - PDCA循环总结报告");
+        reportDTO.setPlanId(planId);
+        reportDTO.setType(Report.ReportType.PDCA_CYCLE);
         
-        // 获取相关的检查阶段
-        List<Check> checkPhases = checkRepository.findByDoPhase(
-            doPhases.isEmpty() ? null : doPhases.get(0));
+        // 生成报告内容
+        StringBuilder summary = new StringBuilder();
+        summary.append("本报告总结了计划「").append(plan.getTitle()).append("」的PDCA循环执行情况。\n");
+        summary.append("计划开始时间：").append(plan.getStartTime()).append("\n");
+        summary.append("计划结束时间：").append(plan.getEndTime()).append("\n");
+        summary.append("任务完成情况：已完成 ").append(plan.getTasks().size()).append(" 个任务\n");
+        reportDTO.setSummary(summary.toString());
         
-        // 获取相关的行动阶段
-        List<Act> actPhases = actRepository.findByCheckPhase(
-            checkPhases.isEmpty() ? null : checkPhases.get(0));
+        // 计算平均分
+        double avgScore = plan.getTasks().stream()
+            .mapToInt(Task::getScore)
+            .average()
+            .orElse(0.0);
         
-        // 创建报告
-        Report report = new Report();
-        report.setTitle(String.format("%s - PDCA循环总结报告", plan.getTitle()));
-        report.setSummary(String.format("计划「%s」的PDCA循环总结报告", plan.getTitle()));
-        report.setCreator(creator);
-        report.setPlan(plan);
-        report.setType(Report.ReportType.PDCA_CYCLE);
-        report.setStatus(Report.ReportStatus.DRAFT);
+        // 生成任务评价分析
+        StringBuilder planningAnalysis = new StringBuilder();
+        planningAnalysis.append("任务平均得分：").append(String.format("%.2f", avgScore)).append("\n");
+        planningAnalysis.append("任务评价详情：\n");
+        plan.getTasks().forEach(task -> {
+            planningAnalysis.append("- ").append(task.getName())
+                .append("（得分：").append(task.getScore()).append("）：")
+                .append(task.getEvaluation()).append("\n");
+        });
+        reportDTO.setPlanningAnalysis(planningAnalysis.toString());
         
-        // 生成计划阶段分析
-        report.setPlanningAnalysis(generatePlanningAnalysis(plan));
-        
-        // 生成执行阶段分析
-        report.setDoingAnalysis(generateDoingAnalysis(doPhases));
-        
-        // 生成检查阶段分析
-        report.setCheckingAnalysis(generateCheckingAnalysis(checkPhases));
-        
-        // 生成行动阶段分析
-        report.setActingAnalysis(generateActingAnalysis(actPhases));
-        
-        return reportRepository.save(report);
+        // 创建并返回报告
+        return createReport(reportDTO, creator);
     }
 
     private String generatePlanningAnalysis(Plan plan) {
@@ -395,5 +412,42 @@ public class ReportServiceImpl implements ReportService {
         }
         
         return updatedReport;
+    }
+
+    @Override
+    public List<Task> checkUnEvaluatedTasks(Long planId) {
+        // 获取计划信息
+        Plan plan = planService.getPlanById(planId);
+        
+        // 过滤出未评分的任务
+        return plan.getTasks().stream()
+            .filter(task -> task.getScore() == null)
+            .collect(Collectors.toList());
+    }
+
+    @Override
+    public Report getReportByPlanId(Long planId) {
+        List<Report> reports = reportRepository.findByPlanAndType(planId, Report.ReportType.PDCA_CYCLE);
+        if (reports.isEmpty()) {
+            throw new BusinessException("该计划尚未生成PDCA循环总结报告");
+        }
+        
+        Report report = reports.get(0);
+        
+        // 确保关联数据被加载
+        if (report.getPlan() != null) {
+            report.getPlan().getId();
+            report.getPlan().getTitle();
+            if (report.getPlan().getTasks() != null) {
+                report.getPlan().getTasks().size();
+            }
+        }
+        
+        if (report.getCreator() != null) {
+            report.getCreator().getId();
+            report.getCreator().getUsername();
+        }
+        
+        return report;
     }
 } 
