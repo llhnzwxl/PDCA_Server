@@ -64,9 +64,10 @@ public class Report {
      * 报告状态枚举
      */
     public enum ReportStatus {
-        DRAFT,             // 草稿
-        COMPLETED,         // 完成
-        REVIEWED,          // 已审核
-        PUBLISHED          // 已发布
+        NOT_GENERATED,    // 未生成
+        DRAFT,           // 草稿
+        COMPLETED,       // 完成
+        REVIEWED,        // 已审核
+        PUBLISHED        // 已发布
     }
 } 
