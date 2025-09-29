@@ -14,6 +14,9 @@ spring:
     hibernate:
       ddl-auto: update
     show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
     database-platform: org.hibernate.dialect.MySQL8Dialect
 
   mvc:
@@ -55,6 +58,7 @@ logging:
 
 swagger:
   enable: true
+
 
 jwt:
   secret: pdcaProjectSecretKey

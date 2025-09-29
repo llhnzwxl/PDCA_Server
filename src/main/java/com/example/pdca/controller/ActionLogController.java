@@ -3,10 +3,13 @@ package com.example.pdca.controller;
 import com.example.pdca.dto.ActionLogDTO;
 import com.example.pdca.dto.ActionLogSimpleDTO;
 import com.example.pdca.model.ActionLog;
+import com.example.pdca.model.User;
 import com.example.pdca.service.ActionLogService;
+import com.example.pdca.service.UserService;
 import io.swagger.annotations.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
+
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
@@ -16,6 +19,10 @@ import javax.validation.Valid;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+
+
 @RestController
 @RequestMapping("/api/logs")
 @Api(tags = "操作日志管理")
@@ -24,9 +31,18 @@ public class ActionLogController {
     @Autowired
     private ActionLogService actionLogService;
 
+
+    @Autowired
+    private UserService userService;
+
     @PostMapping
     @ApiOperation("创建日志")
     public ResponseEntity<ActionLog> createLog(@Valid @RequestBody ActionLogDTO logDTO) {
+        // 获取当前登录用户
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String username = authentication.getName();
+        User creator = userService.findByUsername(username);
+        logDTO.setCreatorId(creator.getId());
         return ResponseEntity.ok(actionLogService.createLog(logDTO));
     }
 
