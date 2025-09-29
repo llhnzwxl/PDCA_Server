@@ -67,6 +67,11 @@ public class ActionLogServiceImpl implements ActionLogService {
     }
 
     @Override
+    public void deleteByPlanId(Long planId){
+        actionLogRepository.deleteByPlanId(planId);
+    }
+
+    @Override
     public ActionLog getLogById(Long logId) {
         return actionLogRepository.findById(logId)
             .orElseThrow(() -> new RuntimeException("日志不存在"));
@@ -107,4 +112,5 @@ public class ActionLogServiceImpl implements ActionLogService {
         
         return actionLogRepository.findByPlanIdWithTasksOrderByCreateTimeDesc(planId);
     }
+
 } 

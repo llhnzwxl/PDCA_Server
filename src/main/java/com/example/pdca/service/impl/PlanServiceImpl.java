@@ -1,7 +1,6 @@
 package com.example.pdca.service.impl;
 
 import com.example.pdca.dto.PlanDTO;
-import com.example.pdca.dto.TaskDTO;
 import com.example.pdca.dto.DoDTO;
 import com.example.pdca.dto.ActionLogDTO;
 import com.example.pdca.model.DoPhase;
@@ -162,18 +161,10 @@ public class PlanServiceImpl implements PlanService {
     public void deletePlan(Long planId) {
         Plan plan = planRepository.findById(planId)
             .orElseThrow(() -> new RuntimeException("计划不存在"));
-        
-        // 记录删除日志
-        ActionLogDTO logDTO = new ActionLogDTO();
-        logDTO.setLogType(ActionLog.LogType.CHANGE);
-        logDTO.setContent("删除了计划: " + plan.getTitle());
-        logDTO.setPlanId(planId);
-        logDTO.setCreatorId(plan.getCreator().getId());
-        actionLogService.createLog(logDTO);
-        
+        // 删除关联的日志
+        actionLogService.deleteByPlanId(plan.getId());
         // 删除关联的任务
         taskRepository.deleteAll(plan.getTasks());
-        
         // 删除计划
         planRepository.delete(plan);
     }

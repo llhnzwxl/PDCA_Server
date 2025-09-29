@@ -16,6 +16,8 @@ import java.util.List;
 public interface ActionLogRepository extends JpaRepository<ActionLog, Long> {
     List<ActionLog> findByPlan(Plan plan);
     List<ActionLog> findByTask(Task task);
+    // 或者使用派生查询
+    void deleteByPlanId(Long planId);
     List<ActionLog> findByPlanOrderByCreateTimeDesc(Plan plan);
     List<ActionLog> findByTaskOrderByCreateTimeDesc(Task task);
     Page<ActionLog> findByPlanOrderByCreateTimeDesc(Plan plan, Pageable pageable);

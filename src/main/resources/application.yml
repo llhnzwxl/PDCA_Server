@@ -1,13 +1,13 @@
 server:
-  port: 8080
+  port: 8090
   servlet:
     context-path: /pdca
 
 spring:
   datasource:
-    url: jdbc:mysql://192.168.6.140:3306/pdca?useSSL=false&serverTimezone=UTC
-    username: PDCA
-    password: PMSzeFScEwikKFdE
+    url: jdbc:mysql://127.0.0.1:3306/pdca?useSSL=false&serverTimezone=UTC
+    username: root
+    password: 3ME75b4Yk7y3DYrC
     driver-class-name: com.mysql.cj.jdbc.Driver
 
   jpa:
